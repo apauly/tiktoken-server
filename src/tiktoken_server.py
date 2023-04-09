@@ -21,8 +21,69 @@ import tiktoken
 
 app = Flask(__name__)
 
-@app.route("/tokenize", methods=['POST', 'GET'])
+@app.route("/chunks", methods=['POST', 'GET'])
+def chunks():
+    data = request.get_json()
+    if not 'prompt' in data:
+      return json.dumps({'tokens': []})
+    model = "text-davinci-003"
 
+    if 'chunk_size' in data:
+        chunk_size = int(data['chunk_size'])
+    else:
+        chunk_size = 2000
+
+    if 'overlap' in data:
+        overlap = int(data['overlap'])
+    else:
+        overlap = 100
+
+    if  'model' in data:
+      model = data['model']
+
+    try :
+        print('Getting encoding for model' + model)
+        enc = tiktoken.encoding_for_model(model)
+    except :
+        return json.dumps({'error': "Model not found"})
+
+    text = data['prompt']
+    tokens = enc.encode(text)
+    num_tokens = len(tokens)
+
+    chunks = []
+    for i in range(0, num_tokens, chunk_size - overlap):
+        chunk = tokens[i:i + chunk_size]
+        chunks.append(enc.decode(chunk))
+
+    return json.dumps({
+        'overlap': overlap,
+        'chunk_size': chunk_size,
+        'chunks': chunks
+    })
+
+
+@app.route("/tokenize", methods=['POST', 'GET'])
+def tokenize():
+    data = request.get_json()
+    if not 'prompt' in data:
+      return json.dumps({'tokens': []})
+    model = "text-davinci-003"
+
+    if  'model' in data:
+      model = data['model']
+
+    print('Model:', model)
+    print('Data:' , data)
+    try :
+        print('Getting encoding for model' + model)
+        enc = tiktoken.encoding_for_model(model)
+    except :
+        return json.dumps({'error': "Model not found"})
+    tokens = enc.encode(data['prompt'])
+    return json.dumps({'tokens': tokens, 'count': len(tokens)})
+
+@app.route("/token_count", methods=['POST', 'GET'])
 def token_count():
     data = request.get_json()
     if not 'prompt' in data:
@@ -39,10 +100,12 @@ def token_count():
         enc = tiktoken.encoding_for_model(model)
     except :
         return json.dumps({'error': "Model not found"})
-    return json.dumps({'tokens': enc.encode(data['prompt'])})
+    tokens = enc.encode(data['prompt'])
+    return json.dumps({'count': len(tokens)})
 
-    if __name__ == "__main__":
-        app.run(host='0.0.0.0')
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0')
 
 
 # python -m flask --app test.py run
